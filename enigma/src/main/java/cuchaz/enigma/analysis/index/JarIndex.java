@@ -51,6 +51,10 @@ public class JarIndex implements JarIndexer {
 	private final Multimap<String, MethodDefEntry> methodImplementations = HashMultimap.create();
 	private final ListMultimap<ClassEntry, ParentedEntry> childrenByClass;
 
+	// spiral
+	private int classesRead = 0;
+	private int classesResolved = 0;
+
 	public JarIndex(EntryIndex entryIndex, InheritanceIndex inheritanceIndex, ReferenceIndex referenceIndex, BridgeMethodIndex bridgeMethodIndex, PackageVisibilityIndex packageVisibilityIndex) {
 		this.entryIndex = entryIndex;
 		this.inheritanceIndex = inheritanceIndex;
@@ -78,6 +82,8 @@ public class JarIndex implements JarIndexer {
 		progress.step(1, I18n.translate("progress.jar.indexing.entries"));
 
 		for (String className : classNames) {
+			// spiral
+			System.out.println(String.format("Reading class {%s}, classesRead=%d", className, classesRead++));
 			classProvider.get(className).accept(new IndexClassVisitor(this, Enigma.ASM_VERSION));
 		}
 
@@ -85,6 +91,8 @@ public class JarIndex implements JarIndexer {
 
 		for (String className : classNames) {
 			try {
+				// spiral
+				System.out.println(String.format("Resolving class {%s}, classesResolved=%d", className, classesResolved++));
 				classProvider.get(className).accept(new IndexReferenceVisitor(this, entryIndex, inheritanceIndex, Enigma.ASM_VERSION));
 			} catch (Exception e) {
 				throw new RuntimeException("Exception while indexing class: " + className, e);

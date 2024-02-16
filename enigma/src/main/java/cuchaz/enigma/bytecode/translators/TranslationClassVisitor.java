@@ -72,15 +72,36 @@ public class TranslationClassVisitor extends ClassVisitor {
 		return new TranslationMethodVisitor(translator, obfClassEntry, entry, api, mv);
 	}
 
+	// @Override
+	// public void visitInnerClass(String name, String outerName, String innerName, int access) {
+	// 	ClassDefEntry classEntry = ClassDefEntry.parse(access, name, obfClassEntry.getSignature().toString(), null, new String[0]);
+	// 	ClassDefEntry translatedEntry = translator.translate(classEntry);
+	// 	ClassEntry translatedOuterClass = translatedEntry.getOuterClass();
+
+	// 	if (translatedOuterClass == null) {
+	// 		throw new IllegalStateException("Translated inner class did not have outer class");
+	// 	}
+
+	// 	// Anonymous classes do not specify an outer or inner name. As we do not translate from the given parameter, ignore if the input is null
+	// 	String translatedName = translatedEntry.getFullName();
+	// 	String translatedOuterName = outerName != null ? translatedOuterClass.getFullName() : null;
+	// 	String translatedInnerName = innerName != null ? translatedEntry.getName() : null;
+	// 	super.visitInnerClass(translatedName, translatedOuterName, translatedInnerName, translatedEntry.getAccess().getFlags());
+	// }
+
+	// spiral
 	@Override
 	public void visitInnerClass(String name, String outerName, String innerName, int access) {
 		ClassDefEntry classEntry = ClassDefEntry.parse(access, name, obfClassEntry.getSignature().toString(), null, new String[0]);
 		ClassDefEntry translatedEntry = translator.translate(classEntry);
 		ClassEntry translatedOuterClass = translatedEntry.getOuterClass();
 
-		if (translatedOuterClass == null) {
-			throw new IllegalStateException("Translated inner class did not have outer class");
-		}
+		// this is a bizarre assumption
+		// JVMS explicitly says that in some cases outerclass MUST be null
+		// getOuterClass is even marked Nullable in ClassEntry
+		// if (translatedOuterClass == null) {
+		// 	throw new IllegalStateException("Translated inner class did not have outer class");
+		// }
 
 		// Anonymous classes do not specify an outer or inner name. As we do not translate from the given parameter, ignore if the input is null
 		String translatedName = translatedEntry.getFullName();

@@ -34,6 +34,12 @@ subprojects {
 		from sourceSets.main.allSource
 	}
 
+	task copyDeps(type: Copy) {
+		from(sourceSets.main.runtimeClasspath)
+		into('build/jarsfolder/')
+		include '*.jar'
+	}
+
 	java {
 		withSourcesJar()
 	}

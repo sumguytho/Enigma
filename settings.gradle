@@ -2,3 +2,12 @@ include 'enigma'
 include 'enigma-swing'
 include 'enigma-server'
 include 'enigma-cli'
+
+// include ':asm'
+// project(':asm').projectDir = new File(settingsDir, '../asm')
+// include ':asm-commons'
+// project(':asm-commons').projectDir = new File(settingsDir, '../asm')
+// include ':asm-util'
+// project(':asm-util').projectDir = new File(settingsDir, '../asm')
+// include ':asm-tree'
+// project(':asm-tree').projectDir = new File(settingsDir, '../asm')

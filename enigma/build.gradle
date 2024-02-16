@@ -7,6 +7,18 @@ dependencies {
 	implementation 'org.ow2.asm:asm-commons:9.4'
 	implementation 'org.ow2.asm:asm-tree:9.4'
 	implementation 'org.ow2.asm:asm-util:9.4'
+	
+	// compile project(":asm:asm")
+	
+	// include(":asm")
+	// include(":asm-commons")
+	// include(":asm-tree")
+	// include(":asm-util")
+	
+	// compile project(":asm")
+	// compile project(":asm-commons")
+	// compile project(":asm-tree")
+	// compile project(":asm-util")
 
 	implementation 'org.bitbucket.mstrobel:procyon-compilertools:0.6.0'
 	implementation 'net.fabricmc:cfr:0.2.1'

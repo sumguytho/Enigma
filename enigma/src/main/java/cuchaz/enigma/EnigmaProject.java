@@ -55,6 +55,9 @@ public class EnigmaProject {
 
 	private EntryRemapper mapper;
 
+	// spiral
+	int classesTranslated = 0;
+
 	public EnigmaProject(Enigma enigma, Path jarPath, ClassProvider classProvider, JarIndex jarIndex, byte[] jarChecksum) {
 		Preconditions.checkArgument(jarChecksum.length == 20);
 		this.enigma = enigma;
@@ -215,6 +218,9 @@ public class EnigmaProject {
 		AtomicInteger count = new AtomicInteger();
 		progress.init(classEntries.size(), I18n.translate("progress.classes.deobfuscating"));
 
+		// spiral
+		classesTranslated = 0;
+
 		Map<String, ClassNode> compiled = classEntries.parallelStream().map(entry -> {
 			ClassEntry translatedEntry = deobfuscator.translate(entry);
 			progress.step(count.getAndIncrement(), translatedEntry.toString());
@@ -222,6 +228,9 @@ public class EnigmaProject {
 			ClassNode node = fixingClassProvider.get(entry.getFullName());
 
 			if (node != null) {
+				// spiral
+				System.out.println(String.format("Remapping names, className=%s, classesTranslated=%d", entry.getFullName(), classesTranslated++));
+
 				ClassNode translatedNode = new ClassNode();
 				node.accept(new TranslationClassVisitor(deobfuscator, Enigma.ASM_VERSION, translatedNode));
 				return translatedNode;
@@ -237,6 +246,9 @@ public class EnigmaProject {
 		private final EntryRemapper mapper;
 		private final Map<String, ClassNode> compiled;
 
+		// spiral
+		private int classesWritten = 0;
+
 		JarExport(EntryRemapper mapper, Map<String, ClassNode> compiled) {
 			this.mapper = mapper;
 			this.compiled = compiled;
@@ -246,6 +258,9 @@ public class EnigmaProject {
 			progress.init(this.compiled.size(), I18n.translate("progress.jar.writing"));
 
 			try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(path))) {
+				// spiral
+				System.out.println(String.format("Writing jar file %s", path));
+
 				AtomicInteger count = new AtomicInteger();
 
 				for (ClassNode node : this.compiled.values()) {
@@ -256,6 +271,8 @@ public class EnigmaProject {
 					ClassWriter writer = new ClassWriter(0);
 					node.accept(writer);
 
+					// spiral
+					System.out.println(String.format("Writing class {%s}, classesWritten=%d", node.name.replace('.', '/'), classesWritten++));
 					out.putNextEntry(new JarEntry(entryName));
 					out.write(writer.toByteArray());
 					out.closeEntry();
