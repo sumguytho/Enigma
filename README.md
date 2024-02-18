@@ -33,6 +33,22 @@ Pre-compiled jars can be found on the [fabric maven](https://maven.fabricmc.net/
  - java-17-openjdk-devel
  - java-17-openjdk-jmods
 
+## Launching
+
+Before this abomination can be launched the project needs to be build and dependencies copied to
+a fixed folder:
+```
+./gradlew build
+./gradlew copyDeps
+```
+
+Another prerequisite is that asm and asm-tree should be build before launcing.
+
+Once all of that has been done:
+```
+./launch.sh
+```
+
 ## Other notes
 
 it seems that the stack map frame indicates more labels then there is bytecode of code
@@ -90,10 +106,16 @@ another possibility pointed out py JVMS is that it can also be either an anonymo
 to me this seems like an error on Enigma's part
 com/threerings/tudey/config/a also has InnerClasses entry in which it points to itself with outer class being null
 
-I've realized that by just making offsetDelta overflow I may have glossed over some bigger issue and should look into it once more
-The same goes for labels, there might be other underlying errors
 the class is com/google/common/eventbus/g, stack map table starts at 5561, ends at 5638
 stack map table declares 5 entries and there are 5 of them but delta offset is 0xffff
+
+I've realized that by just making offsetDelta overflow I may have glossed over some bigger issue and should look into it once more
+The same goes for labels, there might be other underlying errors
+
+when trying to import exported pcode jar there is an error in com/google/common/io/e, stack map table for method aH starts at 707
+which seems to be an invalid frame
+I think there are 2 errors at play, something got exported / imported wrong + my check doesn't check that there are 6912 local variable
+which just can't fit in the file
 
 ## What was done so far
 
