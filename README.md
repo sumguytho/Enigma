@@ -116,6 +116,73 @@ when trying to import exported pcode jar there is an error in com/google/common/
 which seems to be an invalid frame
 I think there are 2 errors at play, something got exported / imported wrong + my check doesn't check that there are 6912 local variable
 which just can't fit in the file
+it seems the borked class has StackMap attribute instad of StackMapTable that the original had, must have something to do with ClassWriter
+it had to do with version, if I deduce version from attributes used then it's all ok, I guess I no longer need to comment out that class
+warning thing
+
+I can't run exported pcode, it has some error in com/threerings/opengl/e, when calling createSnapshot:
+```
+Error: A JNI error has occurred, please check your installation and try again
+Exception in thread "main" java.lang.VerifyError: Instruction type does not match stack map
+Exception Details:
+  Location:
+    com/threerings/opengl/e.createSnapshot(Z)Ljava/awt/image/BufferedImage; @127: iload_3
+  Reason:
+    Type 'java/awt/image/BufferedImage' (current frame, locals[1]) is not assignable to integer (stack map, locals[1])
+  Current Frame:
+    bci: @127
+    flags: { }
+    locals: { 'com/threerings/opengl/e', 'java/awt/image/BufferedImage', integer, integer, integer, 'java/nio/ByteBuffer', '[B' }
+    stack: { }
+  Stackmap Frame:
+    bci: @127
+    flags: { }
+    locals: { 'com/threerings/opengl/e', integer, integer, integer, integer, 'java/nio/ByteBuffer', 'java/awt/image/ComponentColorModel', 'java/awt/image/BufferedImage', '[B', integer }
+    stack: { }
+  Bytecode:
+    0x0000000: 2ab4 0075 b600 df3d 2ab4 0075 b600 e23e
+    0x0000010: 1b99 0007 07a7 0004 0659 3604 1c68 1d68
+    0x0000020: b800 e83a 0503 031c 1d1b 9900 0911 1908
+    0x0000030: a700 0611 1907 1114 0119 05b8 00f0 bb00
+    0x0000040: f259 1103 e8b8 00f8 1b03 1b99 0007 06a7
+    0x0000050: 0004 0403 b700 fb4c bb00 fd59 2b03 1c1d
+    0x0000060: 1504 01b8 0103 0301 b701 0659 4cb6 010a
+    0x0000070: b601 10c0 0112 b601 163a 061d 0464 3e1d
+    0x0000080: 9b00 1b19 0519 061d 1c68 1504 681c 1504
+    0x0000090: 68b6 011c 5784 03ff a7ff e72b b0       
+  Stackmap Table:
+    append_frame(@24,Integer,Integer)
+    same_locals_1_stack_item_frame(@25,Integer)
+    full_frame(@51,{Object[#2],Integer,Integer,Integer,Integer,Object[#234]},{Integer,Integer,Integer,Integer})
+    full_frame(@54,{Object[#2],Integer,Integer,Integer,Integer,Object[#234]},{Integer,Integer,Integer,Integer,Integer})
+    full_frame(@82,{Object[#2],Integer,Integer,Integer,Integer,Object[#234]},{Uninitialized[#62],Uninitialized[#62],Object[#244],Integer,Integer})
+    full_frame(@83,{Object[#2],Integer,Integer,Integer,Integer,Object[#234]},{Uninitialized[#62],Uninitialized[#62],Object[#244],Integer,Integer,Integer})
+    full_frame(@127,{Object[#2],Integer,Integer,Integer,Integer,Object[#234],Object[#242],Object[#253],Object[#280],Integer},{})
+    chop_frame(@155,1)
+
+        at java.lang.Class.getDeclaredMethods0(Native Method)
+        at java.lang.Class.privateGetDeclaredMethods(Class.java:2701)
+        at java.lang.Class.privateGetMethodRecursive(Class.java:3048)
+        at java.lang.Class.getMethod0(Class.java:3018)
+        at java.lang.Class.getMethod(Class.java:1784)
+        at sun.launcher.LauncherHelper.validateMainClass(LauncherHelper.java:670)
+        at sun.launcher.LauncherHelper.checkAndLoadMain(LauncherHelper.java:652)
+```
+
+can't compile java sources with remapped jar, the issue is that com/google/inject/a/a inherits itself, javac can't handle cyclic inheritance
+for interfaces, import tree:
+[loading <spiral>/code/projectx-pcode.jar(/com/threerings/crowd/chat/client/a$c.class)]
+[loading <spiral>/code/projectx-pcode.jar(/com/threerings/crowd/chat/data/a.class)]
+[loading <spiral>/code/projectx-pcode.jar(/com/threerings/crowd/client/l.class)]
+[loading <spiral>/code/projectx-pcode.jar(/com/threerings/presents/dobj/j.class)]
+[loading <spiral>/code/projectx-pcode.jar(/com/google/inject/a/a.class)]
+I disassembled this class, removed its signature attribute, assembled it and just inserted in my mapped jar, and it worked, the mod manager
+compiled successfully
+
+Enigma doesn't let me apply reverse mapping to mods because the required classes aren't there, are there actually any obstacles that prevent
+the inverse mappings? even then, I can just feed mods along with pcode to unmap classes
+manual unmapping by adding mapped mod to mapped pcode worked, so at least there's this fallback method
+this proves the concept, the only question left is world build to see whether there are other compile errors to be had
 
 ## What was done so far
 
@@ -143,4 +210,15 @@ what can I do:
  that the JVMS swears to avoid?
  - remove the frame. it might be a bogus frame introduced by the obfuscator
 TODO: check https://asm.ow2.io/developer-guide.html for stack map clarifications, perhaps, this needs more intricate fixing
+there are local variable mismatches even without the 0xffff delta meaining it won't solve the issue altogether, which also means
+I can leave it as is right now, although I might have to merge them in the future if I don't want to keep using my own copy of asm
+the least aggressive thing we can do is immediately grow current frame as much as possible ignoring all frames that chop current one,
+this might not work if there are chop frames with non-zero delta ahead though
+ultimately, the best solution would be to do whatever the JVM does
 
+deducing class version from attributes used in class file header and in code attribute
+
+I guess I'd have to get rid of cyclic inheritances, will have to parse
+[JVMS 4.7.9.1](https://docs.oracle.com/javase/specs/jvms/se20/html/jvms-4.html#jvms-4.7.9.1)
+
+TODO: make a "world" class that would import everything from pcode so that we can see whether there are no surprise problems to be discovered
