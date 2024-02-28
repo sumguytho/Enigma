@@ -184,6 +184,28 @@ the inverse mappings? even then, I can just feed mods along with pcode to unmap 
 manual unmapping by adding mapped mod to mapped pcode worked, so at least there's this fallback method
 this proves the concept, the only question left is world build to see whether there are other compile errors to be had
 
+Upon further inspection it seems that the labels going out of reach obfuscation is pretty dump: it always occurs on the last frame and
+the frame type is always 63, besides, there is always free space between previous frame and the alleged new one. What this means is
+that the fix is as easy as just lowering frame type to a value such that the delta would point at bytecode end.
+
+I would get an "Arguments can't fit into locals in class file" exception at commit 368619c4761e3e872401861c99dd707dc1cf72d9 (it's 
+64810e85fba2b59145ebf42c40de20735ce6d8de now) but it went away after I did clean + build, although it took multiple clean + build
+iterations which was weird
+
+after adding maxStack and maxLocals calculation I get
+Exception in thread "main" java.lang.NoSuchMethodError: com.samskivert.swing.RuntimeAdjust$a.a(Lcom/samskivert/swing/RuntimeAdjust$a;)I
+        at com.samskivert.swing.RuntimeAdjust$a.compareTo(SourceFile:489)
+        at com.samskivert.util.c.a(SourceFile:384)
+        at com.samskivert.util.SortableArrayList.b(SourceFile:79)
+        at com.samskivert.swing.RuntimeAdjust$a.<init>(SourceFile:510)
+        at com.samskivert.swing.RuntimeAdjust$b.<init>(SourceFile:151)
+        at com.threerings.projectx.client.ProjectXApp.<clinit>(SourceFile:2247)
+I've checked and it really did disappear
+WARNING: no tokens found for com/samskivert/swing/RuntimeAdjust$a.a(Lcom/samskivert/swing/RuntimeAdjust$a;)I's declaration in com/samskivert/swing/RuntimeAdjust
+if I make a separate jar with just the adjuster the method is there, the method is in the tree for the pcode as well, but it won't show
+declaration and it says there are no tokens for it in the console, it just vanishes somewhere in the insides of enigma
+
+
 ## What was done so far
 
 ignore class version (adjust it according to features used later)
@@ -220,5 +242,11 @@ deducing class version from attributes used in class file header and in code att
 
 I guess I'd have to get rid of cyclic inheritances, will have to parse
 [JVMS 4.7.9.1](https://docs.oracle.com/javase/specs/jvms/se20/html/jvms-4.html#jvms-4.7.9.1)
+the cyclic references occur like twice on interfaces from com.google.inject
 
 TODO: make a "world" class that would import everything from pcode so that we can see whether there are no surprise problems to be discovered
+can't make whatever public classes there are to pull their dependencies, maybe I'll come back to that later
+
+I now traverse stack map frames, including implicit one, and record the maximum maxStack and maxLocals encountered instead of adding
+arbitrary numbers
+
