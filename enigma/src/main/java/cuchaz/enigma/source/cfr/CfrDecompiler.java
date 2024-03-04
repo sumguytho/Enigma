@@ -64,7 +64,11 @@ public class CfrDecompiler implements Decompiler {
 				return null;
 			}
 
-			return new Pair<>(AsmUtil.nodeToBytes(node), path);
+			byte[] classBytes = AsmUtil.nodeToBytes(node);
+
+			System.out.println(String.format("[CFR] Providing source, bytesLen=%d, path=%s", classBytes.length, path));
+
+			return new Pair<>(classBytes, path);
 		}
 	}
 }

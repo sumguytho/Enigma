@@ -168,6 +168,7 @@ Exception Details:
         at sun.launcher.LauncherHelper.validateMainClass(LauncherHelper.java:670)
         at sun.launcher.LauncherHelper.checkAndLoadMain(LauncherHelper.java:652)
 ```
+this is due to the fact that I drop locals and stack variables that don't fit in preallocated buffers
 
 can't compile java sources with remapped jar, the issue is that com/google/inject/a/a inherits itself, javac can't handle cyclic inheritance
 for interfaces, import tree:
@@ -184,9 +185,11 @@ the inverse mappings? even then, I can just feed mods along with pcode to unmap 
 manual unmapping by adding mapped mod to mapped pcode worked, so at least there's this fallback method
 this proves the concept, the only question left is world build to see whether there are other compile errors to be had
 
-Upon further inspection it seems that the labels going out of reach obfuscation is pretty dump: it always occurs on the last frame and
+Upon further inspection it seems that the labels going out of reach obfuscation is pretty blunt: it always occurs on the last frame and
 the frame type is always 63, besides, there is always free space between previous frame and the alleged new one. What this means is
 that the fix is as easy as just lowering frame type to a value such that the delta would point at bytecode end.
+Edit: it wasn't always exactly 63 but it was always same_frame as last stack map frame that generates offset_delta beyond the bytecode
+which is fixed trivially (just remove the frame altogether).
 
 I would get an "Arguments can't fit into locals in class file" exception at commit 368619c4761e3e872401861c99dd707dc1cf72d9 (it's 
 64810e85fba2b59145ebf42c40de20735ce6d8de now) but it went away after I did clean + build, although it took multiple clean + build
@@ -204,21 +207,39 @@ I've checked and it really did disappear
 WARNING: no tokens found for com/samskivert/swing/RuntimeAdjust$a.a(Lcom/samskivert/swing/RuntimeAdjust$a;)I's declaration in com/samskivert/swing/RuntimeAdjust
 if I make a separate jar with just the adjuster the method is there, the method is in the tree for the pcode as well, but it won't show
 declaration and it says there are no tokens for it in the console, it just vanishes somewhere in the insides of enigma
+the log output for method a is silent for some reason
+because it reports 0 attributes
+it reports 0 attributes even for the jar with just this class, will the original jar run with exported version? perhaps, this is caused by
+some other error
+try import export from original and from runtimeadjust only, sees if substituting original with either works
+I now output the descriptor and can see that I was wrong, it's the other method that has no implementation and is at 0 attributes, the one
+that disappears does have a code attribute
+anyway, recaf also uses asm but it can import pcode and it doesn't lose this method, how is that?
+with this in mind I don't think it makes to try class permutations anymore, the question is what exactly is fed to the decompiler? how come
+this method is present in jar with just those classes alone but not in a bigger jar?
 
+I found it, decompilers obtain source code through org.benf.cfr.reader.apiunreleased.ClassFileSource2 interface which in turn uses
+AsmUtil.nodeToBytes which uses ClassWriter to translate ClassNode from asm back to bytecode, here are some logs for full pcode:
+[CFR] Providing source, bytesLen=2761, path=com/samskivert/swing/RuntimeAdjust.class
+[CFR] Providing source, bytesLen=3211, path=com/samskivert/swing/RuntimeAdjust$a.class
+here are some logs for runtimeadjust only:
+[CFR] Providing source, bytesLen=2761, path=com/samskivert/swing/RuntimeAdjust.class
+[CFR] Providing source, bytesLen=3211, path=com/samskivert/swing/RuntimeAdjust$a.class
+Perhaps, it would make sense to permutate classes and try launching pcode...
+also, `javap -v` shows the method missing in source code is still present in exported pcode which is very bad, it means I probably broke
+something big time
+diff for `javap -v` of both classes is empty
+jd-gui shows method code for the original jar but not for the exported one
+this might be it, no idea what do about it, next step is to note differences in how java loads this class for original vs. exported jar
+or to diff output against original content and substitute differing classes back in until something changes
 
 ## What was done so far
 
 ignore class version (adjust it according to features used later)
 
-ignore variables when there are more of them than code declares (adjust stack and locals sizes as a better solution, adjust values in
-code after parsing all of it later)
-
 parse stack map table ignoring whatever can't be parsed (mostly excessive 0xff bytes, remove bytes that prevent normal parsing and
 adjust stack map table size later)
 the frames are visited before next call to readstackmapframe, perhaps I should be scanning parsable frames without returning?
-
-right now I just add arbitrary number of labels, what to do about those? do I add nops? do I adjust the label to not breach
-code boudaries? or are there underlying error and those offsets shouldn't exist in the first place?
 
 disable check in EnigmaProject for outer class being null in inner class entries in InnerClasses attribute which seems to be a bug
 in Enigma since JVMS states that sometimes the outer class must be null
@@ -237,16 +258,21 @@ I can leave it as is right now, although I might have to merge them in the futur
 the least aggressive thing we can do is immediately grow current frame as much as possible ignoring all frames that chop current one,
 this might not work if there are chop frames with non-zero delta ahead though
 ultimately, the best solution would be to do whatever the JVM does
+now that I think about it, not chopping the frame is definitely not safe, we might a new local variable in the wrong place
 
 deducing class version from attributes used in class file header and in code attribute
 
-I guess I'd have to get rid of cyclic inheritances, will have to parse
-[JVMS 4.7.9.1](https://docs.oracle.com/javase/specs/jvms/se20/html/jvms-4.html#jvms-4.7.9.1)
-the cyclic references occur like twice on interfaces from com.google.inject
-
 TODO: make a "world" class that would import everything from pcode so that we can see whether there are no surprise problems to be discovered
 can't make whatever public classes there are to pull their dependencies, maybe I'll come back to that later
+A better test would be to run the modified pcode, that would mean nothing has been lost in the process. What is more, I need this
+functionality anyway because what good is deobfuscation if inversing it (obfuscating the names in mods) would break it in the process?
+
+I am now parsing class signatures to eliminate cyclic references and there are indeed only like 2 classes from com.google.inject
+that do this stuff, both are in interfaces, this suggests that not even jvm will accept cyclic inheritance
 
 I now traverse stack map frames, including implicit one, and record the maximum maxStack and maxLocals encountered instead of adding
-arbitrary numbers
+arbitrary numbers (this is done instead of culling locals and stack that didn't fit in the original buffers)
+
+the labels beyond bytecode are longer an issue, their only source were the same_frame stack map frames that generated offset_delta
+breahing the bytecode boundaries
 
