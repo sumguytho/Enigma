@@ -51,6 +51,8 @@ Once all of that has been done:
 
 ## Other notes
 
+java se 20 specification: https://docs.oracle.com/javase/specs/jls/se20/html/index.html
+
 it seems that the stack map frame indicates more labels then there is bytecode of code
 which is what causes crash for the h file thing
 
@@ -149,7 +151,7 @@ Exception Details:
     0x0000060: 1504 01b8 0103 0301 b701 0659 4cb6 010a
     0x0000070: b601 10c0 0112 b601 163a 061d 0464 3e1d
     0x0000080: 9b00 1b19 0519 061d 1c68 1504 681c 1504
-    0x0000090: 68b6 011c 5784 03ff a7ff e72b b0       
+    0x0000090: 68b6 011c 5784 03ff a7ff e72b b0
   Stackmap Table:
     append_frame(@24,Integer,Integer)
     same_locals_1_stack_item_frame(@25,Integer)
@@ -191,7 +193,7 @@ that the fix is as easy as just lowering frame type to a value such that the del
 Edit: it wasn't always exactly 63 but it was always same_frame as last stack map frame that generates offset_delta beyond the bytecode
 which is fixed trivially (just remove the frame altogether).
 
-I would get an "Arguments can't fit into locals in class file" exception at commit 368619c4761e3e872401861c99dd707dc1cf72d9 (it's 
+I would get an "Arguments can't fit into locals in class file" exception at commit 368619c4761e3e872401861c99dd707dc1cf72d9 (it's
 64810e85fba2b59145ebf42c40de20735ce6d8de now) but it went away after I did clean + build, although it took multiple clean + build
 iterations which was weird
 
@@ -232,6 +234,21 @@ diff for `javap -v` of both classes is empty
 jd-gui shows method code for the original jar but not for the exported one
 this might be it, no idea what do about it, next step is to note differences in how java loads this class for original vs. exported jar
 or to diff output against original content and substitute differing classes back in until something changes
+
+I guess I can just make deobfuscator a separate thing and begin the mapping / unmapping tests and fix stuff I encounter in the
+process because the way it is right now seems like a lot more than I can handle at the time. I want to proceed with the stuff I
+actually wanna do, dammit.
+
+I think I might have introduced a situation when a valid stack map frame has been read but won't be visited because the stackMapFrameOffset
+is set to 0 while the frames are only visited when stackMapFrameOffset is non-zero. I need to return the end offset of table to visit
+the last frame, not zero. Actually, it seems I only return 0 when there are no frames left, I don't think think I've omitted anything
+up until now.
+
+Class com/google/common/collect/ImmutableMapEntrySet method layout$41e78d7e can't be exported: there is a null in place of a stack frame.
+This method has multiple frames at fixed offset, I try to merge them and it seems I screw it up. Needs more attention.
+
+Class com/threerings/config/util/DependencyGatherer method a(Object, Type, Set): void has 27 stack map frames with one frame with offsetDelta=0.
+The frame in question is 4th frame from the end.
 
 ## What was done so far
 
